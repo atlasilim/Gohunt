@@ -30,7 +30,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// Renkli çıktı için yardımcılar
+
 var (
 	cyan    = color.New(color.FgCyan).SprintFunc()
 	green   = color.New(color.FgGreen).SprintFunc()
@@ -40,13 +40,13 @@ var (
 	bold    = color.New(color.Bold).SprintFunc()
 )
 
-// Subdomain durumu için struct
+
 type SubdomainStatus struct {
 	Name   string
 	Status string // "Active", "Inactive", "Not Found"
 }
 
-// Sonuçları tutacak ana struct
+
 type ScanResult struct {
 	Target       string
 	Subdomains   []SubdomainStatus
@@ -78,7 +78,7 @@ type CVEInfo struct {
 	CVSS        float64
 }
 
-// Banner
+
 func printBanner() {
 	fmt.Println(bold(red(` ██████╗  ██████╗ ██╗  ██╗██╗   ██╗███╗   ██╗████████╗`)))
 	fmt.Println(bold(red(`██╔════╝ ██╔═══██╗██║  ██║██║   ██║████╗  ██║╚══██╔══╝`)))
@@ -89,7 +89,7 @@ func printBanner() {
 	fmt.Println(magenta("\n== GoHunt v1.0 - All-in-One Web Tool =="))
 }
 
-// Kapsamlı kullanım rehberi
+
 func printUsage() {
 	fmt.Println(bold(cyan("GoHunt v1.0 - All-in-One Web Tool")))
 	fmt.Println(magenta("Developed by Mynex"))
@@ -151,7 +151,7 @@ func printUsage() {
 	fmt.Println("© 2025 GoHunt - Developed by Mynex")
 }
 
-// ---- Global tarama ayarları (flag'lerden doldurulur) ----
+
 var (
 	portsArg        string
 	portTimeout     time.Duration
@@ -178,7 +178,7 @@ var (
 	osintRateLimit  int
 )
 
-// logger
+
 var logger = log.New(io.Discard, "", log.Ldate|log.Ltime|log.Lmicroseconds)
 
 func initLogger(path string) {
@@ -196,7 +196,7 @@ func initLogger(path string) {
 	logger = log.New(mw, "[GoHunt] ", log.Ldate|log.Ltime|log.Lmicroseconds)
 }
 
-// HTTP hız limitleyici
+
 var httpPermitCh chan struct{}
 var osintPermitCh chan struct{}
 
@@ -236,11 +236,11 @@ func initOsintRateLimiter(rate int) {
 	osintPermitCh = ch
 }
 
-// Subdomain tarama (DNS brute force)
+
 func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 	var errorsOut []string
 
-	// Wordlist
+	
 	var candidates []string
 	if strings.TrimSpace(subWordlistPath) != "" {
 		// Özel wordlist kullan
@@ -300,7 +300,6 @@ func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 		}
 	}
 
-	// Start workers
 	if subConcurrency <= 0 {
 		subConcurrency = 100
 	}
@@ -309,7 +308,7 @@ func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 		go worker()
 	}
 
-	// Feed jobs
+	
 	go func() {
 		for _, s := range candidates {
 			fqdn := s + "." + target
@@ -320,17 +319,17 @@ func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 
 	wg.Wait()
 
-	// Sonuçları sırala
+	
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Name < results[j].Name
 	})
 
-	// OSINT kaynakları (sadece özel wordlist kullanılmadığında)
+	
 	if enableOSINT && strings.TrimSpace(subWordlistPath) == "" {
 		logger.Printf("Collecting subdomains from OSINT sources...")
-		// Sadece HackerTarget kullan (daha güvenilir)
+		
 		if subs, err := hackerTargetSubdomains(target); err == nil {
-			// OSINT'ten gelen subdomain'leri "Active" olarak ekle
+			
 			for _, sub := range subs {
 				// Zaten var mı kontrol et
 				found := false
@@ -350,7 +349,7 @@ func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 			logger.Printf("HackerTarget error: %v", err)
 		}
 
-		// Tekrar sırala
+		
 		sort.Slice(results, func(i, j int) bool {
 			return results[i].Name < results[j].Name
 		})
@@ -370,7 +369,7 @@ func scanSubdomains(target string) ([]SubdomainStatus, []string) {
 	return results, errorsOut
 }
 
-// Port tarama (TCP connect + banner grabbing)
+
 func scanPorts(target string) ([]PortInfo, []string) {
 	var errorsOut []string
 
@@ -418,7 +417,7 @@ func scanPorts(target string) ([]PortInfo, []string) {
 			service := guessServiceByPort(j.port)
 			banner := ""
 
-			// Grab banners (daha hızlı)
+			
 			switch j.port {
 			case 80, 8080, 8000:
 				_, _ = conn.Write([]byte("HEAD / HTTP/1.0\r\nHost: " + target + "\r\n\r\n"))
@@ -462,7 +461,7 @@ func scanPorts(target string) ([]PortInfo, []string) {
 	return results, errorsOut
 }
 
-// Banner analiz + CVE arama (CIRCL API denemesi, başarısız olursa basit eşleme)
+
 func scanCVEs(ports []PortInfo) ([]CVEInfo, []string) {
 	var out []CVEInfo
 	var errorsOut []string
@@ -476,7 +475,7 @@ func scanCVEs(ports []PortInfo) ([]CVEInfo, []string) {
 		q := vendor + "/" + product
 		cves, err := fetchCVEsFromCircl(q, 5)
 		if err != nil {
-			// Fallback: simple heuristics
+	
 			if v := fallbackCVEs(vendor, product, version); len(v) > 0 {
 				cves = v
 			} else {
@@ -494,7 +493,7 @@ func scanCVEs(ports []PortInfo) ([]CVEInfo, []string) {
 	return out, errorsOut
 }
 
-// Web teknolojileri tespiti (HTTP başlık/HTML analiz)
+
 func detectWebTechs(baseURL string) ([]string, []string) {
 	var errorsOut []string
 	var techs []string
@@ -508,7 +507,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		return techs, errorsOut
 	}
 
-	// HTTP Headers'dan teknoloji tespiti
+	
 	if srv := hdrs.Get("Server"); srv != "" {
 		techs = append(techs, "Server: "+srv)
 	}
@@ -522,10 +521,10 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "Cloudflare")
 	}
 
-	// HTML içeriğinden teknoloji tespiti
+	
 	bodyLower := strings.ToLower(body)
 
-	// JavaScript Frameworks
+	
 	if strings.Contains(bodyLower, "react") || strings.Contains(bodyLower, "reactjs") {
 		techs = append(techs, "React.js")
 	}
@@ -539,7 +538,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "jQuery")
 	}
 
-	// CMS Systems
+	
 	if strings.Contains(bodyLower, "wp-content") || strings.Contains(bodyLower, "wordpress") {
 		techs = append(techs, "WordPress")
 	}
@@ -550,7 +549,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "Joomla")
 	}
 
-	// Web Servers
+
 	if strings.Contains(bodyLower, "apache") {
 		techs = append(techs, "Apache")
 	}
@@ -558,7 +557,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "Nginx")
 	}
 
-	// Analytics & Tracking
+	
 	if strings.Contains(bodyLower, "google-analytics") || strings.Contains(bodyLower, "gtag") {
 		techs = append(techs, "Google Analytics")
 	}
@@ -566,7 +565,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "Facebook Pixel")
 	}
 
-	// CDN & Cloud Services
+	
 	if strings.Contains(bodyLower, "cloudflare") {
 		techs = append(techs, "Cloudflare")
 	}
@@ -574,7 +573,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 		techs = append(techs, "Amazon Web Services")
 	}
 
-	// Eğer hiç teknoloji bulunamazsa
+	
 	if len(techs) == 0 {
 		techs = append(techs, "Standard Web Technologies")
 	}
@@ -582,7 +581,7 @@ func detectWebTechs(baseURL string) ([]string, []string) {
 	return techs, errorsOut
 }
 
-// Reverse IP: hedefin IP'sini çöz ve PTR'ı getir
+
 func reverseIP(target string) (string, []string) {
 	var errorsOut []string
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -607,7 +606,6 @@ func reverseIP(target string) (string, []string) {
 	return ip, errorsOut
 }
 
-// WHOIS (basit): .com/.net için verisign, .org için pir; diğerleri iana yönlendirmesi yapılmaz, sadece basit deneme
 func whoisLookup(target string) (string, []string) {
 	var errorsOut []string
 	host := whoisServerForHost(target)
@@ -632,7 +630,7 @@ func whoisLookup(target string) (string, []string) {
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 	data, _ := io.ReadAll(conn)
 	out := string(data)
-	// Kısa özet döndür
+	
 	lines := strings.Split(out, "\n")
 	keep := []string{}
 	for _, ln := range lines {
@@ -649,7 +647,7 @@ func whoisLookup(target string) (string, []string) {
 	return strings.Join(keep, "\n"), errorsOut
 }
 
-// Basit XSS, SQLi, LFI testleri (otomatik)
+
 func vulnTests(baseURL string) ([]string, []string) {
 	var errorsOut []string
 	if baseURL == "" {
@@ -657,7 +655,7 @@ func vulnTests(baseURL string) ([]string, []string) {
 	}
 	results := []string{}
 
-	// XSS Reflected/DOM payloadları
+	
 	xssPayloads := []string{
 		"<script>alert(1)</script>", "\"'><img src=x onerror=alert(1)>", "</script><script>alert(1)</script>",
 		"<svg/onload=alert(1)>", "<img src=x onerror=confirm(1)>",
@@ -678,7 +676,7 @@ func vulnTests(baseURL string) ([]string, []string) {
 		results = append(results, "XSS: No indication")
 	}
 
-	// SQLi klasik ve varyasyonlar
+	
 	sqliPayloads := []string{"1' OR '1'='1", "' OR '1'='1' -- ", "\") OR (\"1\"=\"1", "1;WAITFOR DELAY '0:0:1'--"}
 	tested = false
 	for _, p := range sqliPayloads {
@@ -696,21 +694,20 @@ func vulnTests(baseURL string) ([]string, []string) {
 		results = append(results, "SQLi: No indication")
 	}
 
-	// LFI Linux/Windows patikaları
+	
 	lfiPayloads := []string{"../../../../etc/passwd", "..\\..\\..\\..\\windows\\win.ini", "../../../../proc/self/environ"}
-	// RFI denemesi (eğer uygulama dış URL kabul ediyorsa)
+
 	rfiURL := addParam(baseURL, "file", "http://example.com")
 	_, _, _ = httpFetch(rfiURL)
-	// Basit SSTI belirtisi (template yansıması)
 	sstiPayload := "{{7*7}}"
 	if body, _, err := httpFetch(addParam(baseURL, "q", sstiPayload)); err == nil {
 		if strings.Contains(body, "49") {
 			results = append(results, "SSTI: Possible template injection")
 		}
 	}
-	// Basit Open Redirect denemesi
+	
 	if _, _, err := httpFetch(addParam(baseURL, "next", "//evil.com")); err == nil {
-		// Tespit etmek zor; sadece isteği yapıyoruz
+		
 	}
 	tested = false
 	for _, p := range lfiPayloads {
@@ -730,7 +727,7 @@ func vulnTests(baseURL string) ([]string, []string) {
 	return results, errorsOut
 }
 
-// Paralel tarama örneği
+
 func parallelScan(target string, doSub, doPort, doCVE, doTech, doRev, doWhois, doVuln bool) ScanResult {
 	result := ScanResult{Target: target}
 	var errs []string
@@ -738,9 +735,9 @@ func parallelScan(target string, doSub, doPort, doCVE, doTech, doRev, doWhois, d
 	var errMu sync.Mutex
 	var warnMu sync.Mutex
 
-	// Progress messages will be shown in the final report, not during scan
+	
 
-	// Faz 1: Subdomain, Port, ReverseIP, WHOIS
+	
 	var wg sync.WaitGroup
 	activeGoroutines := 0
 
@@ -814,10 +811,10 @@ func parallelScan(target string, doSub, doPort, doCVE, doTech, doRev, doWhois, d
 		wg.Wait()
 	}
 
-	// Base URL belirle
+	
 	baseURL := chooseBaseURL(target, result.OpenPorts)
 
-	// Faz 2: CVE, WebTech, VulnTests
+	
 	if doCVE {
 		cves, errList := scanCVEs(result.OpenPorts)
 		result.CVEs = cves
@@ -854,7 +851,7 @@ func parallelScan(target string, doSub, doPort, doCVE, doTech, doRev, doWhois, d
 	return result
 }
 
-// Rapor çıktısı (modern format)
+
 func printReport(res ScanResult, verbose bool, doSub, doPort, doCVE, doTech, doRev, doWhois, doVuln bool) {
 	fmt.Println("=" + strings.Repeat("=", 70) + "=")
 	fmt.Printf("🎯 TARGET: %s\n", bold(cyan(res.Target)))
@@ -862,7 +859,7 @@ func printReport(res ScanResult, verbose bool, doSub, doPort, doCVE, doTech, doR
 	fmt.Println()
 
 	if doSub {
-		// Sadece aktif subdomain'leri filtrele
+		
 		var activeSubdomains []SubdomainStatus
 		for _, s := range res.Subdomains {
 			if s.Status == "Active" {
@@ -874,7 +871,7 @@ func printReport(res ScanResult, verbose bool, doSub, doPort, doCVE, doTech, doR
 			fmt.Printf("📡 SUBDOMAIN SCAN (%d active)\n", len(activeSubdomains))
 			fmt.Println(strings.Repeat("-", 72))
 
-			// İlk 15 aktif subdomain'i göster
+			
 			displayLimit := 15
 			subsToShow := activeSubdomains
 			if len(subsToShow) > displayLimit {
@@ -968,7 +965,7 @@ func printReport(res ScanResult, verbose bool, doSub, doPort, doCVE, doTech, doR
 			fmt.Printf("🚀 WEB TECHNOLOGY DETECTION (%d technologies)\n", len(res.WebTechs))
 			fmt.Println(strings.Repeat("-", 72))
 
-			// Teknolojileri 3 sütunda göster
+			
 			cols := 3
 			for i := 0; i < len(res.WebTechs); i += cols {
 				line := "  "
@@ -1057,7 +1054,7 @@ func printReport(res ScanResult, verbose bool, doSub, doPort, doCVE, doTech, doR
 	}
 }
 
-// JSON çıktı
+
 func writeJSON(res ScanResult, filename string) error {
 	data, err := json.MarshalIndent(res, "", "  ")
 	if err != nil {
@@ -1066,7 +1063,7 @@ func writeJSON(res ScanResult, filename string) error {
 	return os.WriteFile(filename, data, 0644)
 }
 
-// HTML çıktı (basit örnek)
+
 func writeHTML(res ScanResult, filename string) error {
 	html := "<html><head><title>GoHunt Report</title></head><body>"
 	html += fmt.Sprintf("<h1>GoHunt Report - %s</h1>", res.Target)
@@ -1091,7 +1088,7 @@ func writeHTML(res ScanResult, filename string) error {
 }
 
 func main() {
-	// Komut satırı argümanları
+	
 	target := flag.String("target", "", "Target domain or IP")
 	cveScan := flag.Bool("cve-scan", false, "Run CVE scan")
 	output := flag.String("output", "", "Output file (json/html/csv/xml/txt)")
@@ -1106,7 +1103,7 @@ func main() {
 	help := flag.Bool("h", false, "Show usage")
 	allInOne := flag.Bool("all-in-one", false, "Run all scans (default if none selected)")
 
-	// Gelişmiş parametreler
+	
 	flag.StringVar(&portsArg, "ports", "22,21,25,53,80,110,143,443,587,993,995,3306,5432,6379,8080,8443", "Ports to scan (comma or range: 1-1024)")
 	var portTimeoutMs int
 	flag.IntVar(&portTimeoutMs, "port-timeout-ms", 800, "Port connect timeout (ms)")
@@ -1143,9 +1140,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	// logger
+	
 	initLogger(logFilePath)
-	// CA havuzu
+	
 	if strings.TrimSpace(caFile) != "" {
 		pem, err := os.ReadFile(caFile)
 		if err != nil {
@@ -1162,7 +1159,7 @@ func main() {
 	start := time.Now()
 	fmt.Printf("Scan Start: %s\n", start.Format("2006-01-02 15:04:05"))
 
-	// Süre dönüşümleri
+	
 	portTimeout = time.Duration(portTimeoutMs) * time.Millisecond
 	subTimeout = time.Duration(subTimeoutMs) * time.Millisecond
 	httpTimeout = time.Duration(httpTimeoutMs) * time.Millisecond
@@ -1172,16 +1169,15 @@ func main() {
 	osintBackoff = time.Duration(osintBackoffMs) * time.Millisecond
 	initOsintRateLimiter(osintRateLimit)
 
-	// Hangi testler yapılacak?
 	doSub := *subdomain
 	doPort := *portScan
 	doCVE := *cveScan
-	doTech := true // Web teknolojileri her zaman tespit edilsin
+	doTech := true 
 	doRev := *reverseIP
 	doWhois := *whois
 	doVuln := *xss || *sqli || *lfi
 
-	// all-in-one veya hiçbir bayrak yoksa hepsini aç
+	
 	noneSelected := !(doSub || doPort || doCVE || doRev || doWhois || doVuln)
 	if *allInOne || noneSelected {
 		doSub = true
@@ -1192,7 +1188,7 @@ func main() {
 		doVuln = true
 	}
 
-	// Hızlı tarama için timeout'ları kısalt
+	
 	if *allInOne || noneSelected {
 		httpTimeout = 6 * time.Second
 		osintTimeout = 8 * time.Second
@@ -1200,24 +1196,23 @@ func main() {
 		subTimeout = 500 * time.Millisecond
 		retries = 1
 		osintRetries = 1
-		// Hızlı tarama için concurrency artır
+	
 		if portConcurrency < 500 {
 			portConcurrency = 500
 		}
 		if subConcurrency < 300 {
 			subConcurrency = 300
 		}
-		// OSINT'i hızlandır
+	
 		if osintRateLimit < 3 {
 			osintRateLimit = 3
 		}
 	}
-
-	// Genel timeout ile tarama
+	
 	scanCtx, scanCancel := context.WithTimeout(context.Background(), 2*time.Minute+15*time.Second)
 	defer scanCancel()
 
-	// Tarama sonucunu channel üzerinden al
+	
 	resultChan := make(chan ScanResult, 1)
 	go func() {
 		result := parallelScan(*target, doSub, doPort, doCVE, doTech, doRev, doWhois, doVuln)
@@ -1226,13 +1221,13 @@ func main() {
 		resultChan <- result
 	}()
 
-	// Wait for timeout or result
+	
 	var result ScanResult
 	select {
 	case result = <-resultChan:
-		// Completed normally
+		
 	case <-scanCtx.Done():
-		// Timeout - show partial results
+	
 		fmt.Println(red("⚠️  Scan timed out! Showing partial results..."))
 		result = ScanResult{
 			Target:       *target,
@@ -1243,7 +1238,8 @@ func main() {
 		}
 	}
 
-	// Çıktı dosyası
+
+	
 	if *output != "" {
 		if strings.HasSuffix(*output, ".json") {
 			if err := writeJSON(result, *output); err != nil {
@@ -1285,16 +1281,16 @@ func main() {
 		}
 	}
 
-	// Rapor çıktısı (EXAMPLE.md formatında)
+
 	printReport(result, *verbose, doSub, doPort, doCVE, doTech, doRev, doWhois, doVuln)
 
-	// Özet
+
 	fmt.Println("=" + strings.Repeat("=", 70) + "=")
 	fmt.Printf("📊 SCAN SUMMARY\n")
 	fmt.Println("=" + strings.Repeat("=", 70) + "=")
 	fmt.Printf("🎯 Target: %s\n", bold(cyan(result.Target)))
 	if doSub {
-		// Sadece aktif subdomain sayısını göster
+		
 		activeCount := 0
 		for _, s := range result.Subdomains {
 			if s.Status == "Active" {
@@ -1330,7 +1326,7 @@ func main() {
 	fmt.Println("© 2025 GoHunt - Developed by Mynex")
 }
 
-// ----------------- Yardımcı Fonksiyonlar -----------------
+
 
 func defaultSubdomains() []string {
 	return []string{
@@ -1434,7 +1430,7 @@ func readFirstLine(r io.Reader) string {
 
 func parseSoftwareFromBanner(p PortInfo) (vendor, product, version string) {
 	b := p.Banner + " " + p.Service
-	// Simple regexes
+	
 	if strings.Contains(strings.ToLower(b), "apache") {
 		vendor, product = "apache", "http_server"
 		if m := regexp.MustCompile(`Apache[/ ]([0-9.]+)`).FindStringSubmatch(b); len(m) == 2 {
@@ -1459,7 +1455,7 @@ func parseSoftwareFromBanner(p PortInfo) (vendor, product, version string) {
 }
 
 func fetchCVEsFromCircl(vendorProduct string, limit int) ([]CVEInfo, error) {
-	// Endpoint: https://cve.circl.lu/api/search/vendor/product
+	
 	u := "https://cve.circl.lu/api/search/" + url.PathEscape(vendorProduct)
 	client := &http.Client{Timeout: 6 * time.Second}
 	resp, err := client.Get(u)
@@ -1506,7 +1502,7 @@ func fetchCVEsFromCircl(vendorProduct string, limit int) ([]CVEInfo, error) {
 }
 
 func fallbackCVEs(vendor, product, version string) []CVEInfo {
-	// Basit eşleme: popüler servisler için örnekler
+	
 	if vendor == "apache" && product == "http_server" {
 		return []CVEInfo{{ID: "CVE-2021-41773", Description: "Apache Path Traversal", Severity: "High", Source: "Heuristic", ExploitLink: "https://www.exploit-db.com/exploits/50406", CVSS: 7.5}}
 	}
@@ -1539,7 +1535,7 @@ func httpFetch(u string) (string, http.Header, error) {
 			return e
 		}
 		req.Header.Set("User-Agent", "GoHunt/1.0")
-		// context tabanlı timeout/iptal için
+		
 		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 		defer cancel()
 		req = req.WithContext(ctx)
@@ -1591,7 +1587,7 @@ func looksLikeSQLError(body string) bool {
 }
 
 func chooseBaseURL(target string, ports []PortInfo) string {
-	// Şema seçimi
+	
 	scheme := schemeMode
 	if scheme == "auto" {
 		has443 := false
@@ -1616,14 +1612,14 @@ func chooseBaseURL(target string, ports []PortInfo) string {
 }
 
 func whoisServerForHost(target string) string {
-	// TLD'ye göre basit seçim
+	
 	if strings.HasSuffix(strings.ToLower(target), ".com") || strings.HasSuffix(strings.ToLower(target), ".net") {
 		return "whois.verisign-grs.com"
 	}
 	if strings.HasSuffix(strings.ToLower(target), ".org") {
 		return "whois.pir.org"
 	}
-	// default: verisign deneyelim
+	
 	return "whois.verisign-grs.com"
 }
 
@@ -1679,7 +1675,7 @@ func dedupStrings(in []string) []string {
 	return out
 }
 
-// String'i belirtilen uzunlukta keser
+
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
@@ -1688,19 +1684,19 @@ func truncateString(s string, maxLen int) string {
 }
 
 func hackerTargetSubdomains(domain string) ([]string, error) {
-	// https://api.hackertarget.com/hostsearch/?q=domain -> csv: sub,ip per line
+	
 	u := "https://api.hackertarget.com/hostsearch/?q=" + url.QueryEscape(domain)
 
 	var lastErr error
 
-	// OSINT-specific retry logic
+
 	for attempt := 0; attempt <= osintRetries; attempt++ {
-		// Apply OSINT rate limiting
+	
 		if osintPermitCh != nil {
 			<-osintPermitCh
 		}
 
-		// Daha uzun timeout ile deneme
+	
 		ctx, cancel := context.WithTimeout(context.Background(), osintTimeout)
 		defer cancel()
 
@@ -1746,7 +1742,7 @@ func hackerTargetSubdomains(domain string) ([]string, error) {
 			return nil, err
 		}
 
-		// HackerTarget bazen hata mesajı döndürür, kontrol et
+		
 		bodyStr := string(body)
 		if strings.Contains(bodyStr, "error") || strings.Contains(bodyStr, "limit") || strings.Contains(bodyStr, "quota") {
 			lastErr = fmt.Errorf("API limiti veya hata: %s", strings.TrimSpace(bodyStr))
@@ -1793,7 +1789,7 @@ func hackerTargetSubdomains(domain string) ([]string, error) {
 	return nil, lastErr
 }
 
-// Çıktı formatları: CSV, XML
+
 func writeCSV(res ScanResult, filename string) error {
 	// önce memory buffer'a yaz, başarısız olursa dosyayı etkileme
 	buf := &bytes.Buffer{}
@@ -1801,7 +1797,7 @@ func writeCSV(res ScanResult, filename string) error {
 	if err := w.Write([]string{"Section", "Value1", "Value2", "Value3"}); err != nil {
 		return err
 	}
-	// büyük veri için periyodik Flush
+	
 	flushEvery := 1000
 	row := 0
 	for _, s := range res.Subdomains {
@@ -1871,7 +1867,7 @@ func writeCSV(res ScanResult, filename string) error {
 	if w.Error() != nil {
 		return w.Error()
 	}
-	// dosyaya atomik yazma
+
 	tmp := filename + ".tmp"
 	if err := os.WriteFile(tmp, buf.Bytes(), 0644); err != nil {
 		return err
@@ -1903,7 +1899,7 @@ type xmlCVE struct {
 }
 
 func writeXML(res ScanResult, filename string) error {
-	// Subdomain isimlerini string array'e dönüştür
+	
 	var subdomainNames []string
 	for _, s := range res.Subdomains {
 		subdomainNames = append(subdomainNames, s.Name+" ("+s.Status+")")
@@ -1924,7 +1920,7 @@ func writeXML(res ScanResult, filename string) error {
 	return os.WriteFile(filename, out, 0644)
 }
 
-// TXT output (pretty plain text)
+
 func writeTXT(res ScanResult, filename string) error {
 	b := &strings.Builder{}
 	fmt.Fprintf(b, "GoHunt Report - %s\n", res.Target)
