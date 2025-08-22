@@ -354,24 +354,8 @@ gohunt --target example.com --all-in-one --output report.csv
 
 ---
 
-## 🤝 Contributing
 
-### 🔧 **Development Environment Setup**
-```bash
-# Fork repository
-git clone https://github.com/yourusername/gohunt.git
-cd gohunt
 
-# Create development branch
-git checkout -b feature/new-feature
-
-# Commit changes
-git add .
-git commit -m "Add new feature"
-
-# Send pull request
-git push origin feature/new-feature
-```
 
 ### 📝 **Contribution Areas**
 - 🐛 Bug fixes
