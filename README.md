@@ -390,7 +390,7 @@ git push origin feature/new-feature
 
 ## 📞 Contact
 
-- **GitHub**: [@yourusername](https://github.com/atlasilim)
+- **GitHub**: [@atlasilim](https://github.com/atlasilim)
 
 
 ---
